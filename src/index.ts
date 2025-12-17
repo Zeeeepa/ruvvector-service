@@ -19,6 +19,9 @@ import { errorHandler, notFoundHandler } from './middleware/errorHandler';
 import { ingestHandler } from './handlers/ingest';
 import { queryHandler } from './handlers/query';
 import { simulateHandler } from './handlers/simulate';
+import { graphHandler } from './handlers/graph';
+import { predictHandler } from './handlers/predict';
+import { metadataHandler } from './handlers/metadata';
 import { healthHandler, readyHandler } from './handlers/health';
 
 /**
@@ -104,6 +107,29 @@ function createApp(vectorClient: VectorClient): Application {
     }
   );
 
+  // POST /graph - Graph operations (stub - TODO: implement)
+  app.post(
+    '/graph',
+    validateRequiredHeaders,
+    (req, res, next) => {
+      graphHandler(req, res, vectorClient).catch(next);
+    }
+  );
+
+  // POST /predict - Run ML predictions
+  app.post(
+    '/predict',
+    validateRequiredHeaders,
+    (req, res, next) => {
+      predictHandler(req, res, vectorClient).catch(next);
+    }
+  );
+
+  // GET /metadata - Service metadata and capability discovery
+  app.get('/metadata', (req, res, next) => {
+    metadataHandler(req, res, vectorClient).catch(next);
+  });
+
   // Error handlers (must be last)
   app.use(notFoundHandler);
   app.use(errorHandler);
@@ -118,8 +144,8 @@ function createApp(vectorClient: VectorClient): Application {
 async function startServer(): Promise<Server> {
   // Initialize VectorClient with SPARC-compliant config
   const vectorClient = new VectorClient({
-    host: config.ruvVector.host,
-    port: config.ruvVector.port,
+    serviceUrl: config.ruvVector.serviceUrl,
+    apiKey: config.ruvVector.apiKey,
     timeout: config.ruvVector.timeout,
     poolSize: config.ruvVector.poolSize,
     circuitBreaker: {
@@ -128,6 +154,9 @@ async function startServer(): Promise<Server> {
       resetTimeout: config.circuitBreaker.resetTimeout,
     },
   });
+
+  // Establish connection to RuvVector
+  await vectorClient.connect();
 
   // Create Express app
   const app = createApp(vectorClient);
@@ -138,8 +167,7 @@ async function startServer(): Promise<Server> {
     logger.info(
       {
         port: config.port,
-        ruvvectorHost: connectionInfo.host,
-        ruvvectorPort: connectionInfo.port,
+        ruvvectorServiceUrl: connectionInfo.serviceUrl,
         service: 'ruvvector-service',
       },
       'Server started successfully'

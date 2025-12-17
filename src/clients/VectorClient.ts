@@ -6,12 +6,13 @@ import {
   VectorQueryResult,
   VectorSimilarityParams,
   VectorSimilarityResult,
+  PredictionResult,
 } from '../types';
 
 /**
  * Circuit breaker states as per SPARC specification
  */
-enum CircuitState {
+export enum CircuitState {
   CLOSED = 'closed',      // Normal operation, requests pass through
   OPEN = 'open',          // Fail fast, return 503 immediately
   HALF_OPEN = 'half_open' // Allow limited requests to test recovery
@@ -28,23 +29,32 @@ interface CircuitBreakerConfig {
 
 /**
  * VectorClient configuration matching SPARC spec
+ * Uses serviceUrl instead of separate host/port
  */
 export interface VectorClientConfig {
-  host: string;
-  port: number;
+  serviceUrl: string;     // Full service URL (e.g., http://ruvvector:6379)
+  apiKey?: string;        // Optional API key for authentication
   timeout: number;
   poolSize: number;
   circuitBreaker: CircuitBreakerConfig;
 }
 
 /**
- * Client for interacting with RuvVector backend service
+ * RuvVector/RuvBase Client - Minimal stable contract for Layer 3 integration
+ *
+ * This client exposes the following contract:
+ * - connect(): Promise<void> - Establish connection to RuvVector service
+ * - upsert(namespace, id, vector, metadata): Promise<UpsertResult> - Insert or update vector
+ * - query(namespace, vector, top_k): Promise<QueryResult> - Query similar vectors
+ * - run_prediction(model, input): Promise<PredictionResult> - Run ML prediction
+ *
  * Implements circuit breaker pattern as per SPARC specification
  */
 export class VectorClient {
-  private host: string;
-  private port: number;
+  private serviceUrl: string;
+  private apiKey?: string;
   private timeout: number;
+  private connected: boolean = false;
 
   // Circuit breaker state
   private circuitState: CircuitState = CircuitState.CLOSED;
@@ -53,10 +63,86 @@ export class VectorClient {
   private circuitConfig: CircuitBreakerConfig;
 
   constructor(config: VectorClientConfig) {
-    this.host = config.host;
-    this.port = config.port;
+    this.serviceUrl = config.serviceUrl;
+    this.apiKey = config.apiKey;
     this.timeout = config.timeout;
     this.circuitConfig = config.circuitBreaker;
+  }
+
+  /**
+   * Get API key for authentication (if configured)
+   * Used by future auth implementation
+   */
+  getApiKey(): string | undefined {
+    return this.apiKey;
+  }
+
+  /**
+   * Establish connection to RuvVector service
+   * SPARC Contract: connect() -> Promise<void>
+   * @throws Error if connection fails
+   */
+  async connect(): Promise<void> {
+    logger.info({ serviceUrl: this.serviceUrl }, 'Connecting to RuvVector service');
+
+    // TODO: Implement actual connection logic (gRPC/TCP)
+    // For now, mark as connected (stub implementation)
+    this.connected = true;
+    this.circuitState = CircuitState.CLOSED;
+    this.failureCount = 0;
+
+    logger.info({ serviceUrl: this.serviceUrl }, 'Connected to RuvVector service');
+  }
+
+  /**
+   * Check if client is connected
+   */
+  isConnected(): boolean {
+    return this.connected;
+  }
+
+  /**
+   * Upsert a vector with metadata (insert or update)
+   * SPARC Contract: upsert(namespace, id, vector, metadata) -> Promise<UpsertResult>
+   *
+   * @param namespace - Vector namespace/collection
+   * @param id - Unique vector identifier
+   * @param vector - Embedding vector
+   * @param metadata - Associated metadata
+   * @returns UpsertResult with id and status
+   */
+  async upsert(
+    namespace: string,
+    id: string,
+    vector: number[],
+    metadata: Record<string, unknown>
+  ): Promise<UpsertResult> {
+    this.checkCircuit();
+
+    const startTime = Date.now();
+
+    try {
+      logger.debug({ namespace, id, vectorLength: vector.length, metadataKeys: Object.keys(metadata) }, 'Upserting vector');
+
+      // TODO: Implement actual upsert to RuvVector backend
+      // Stub implementation - vector and metadata will be sent to backend
+      const result: UpsertResult = {
+        id,
+        namespace,
+        status: 'upserted',
+      };
+
+      this.recordSuccess();
+
+      const duration = Date.now() - startTime;
+      logger.info({ namespace, id, duration }, 'Vector upserted successfully');
+
+      return result;
+    } catch (error) {
+      this.recordFailure();
+      logger.error({ error, namespace, id }, 'Failed to upsert vector');
+      throw error;
+    }
   }
 
   /**
@@ -223,6 +309,46 @@ export class VectorClient {
   }
 
   /**
+   * Run prediction using a model
+   * SPARC Contract: run_prediction(model, input) -> Promise<PredictionResult>
+   *
+   * @param model - Model identifier to use for prediction
+   * @param input - Input data for the model (vector or structured data)
+   * @returns PredictionResult with model output
+   */
+  async run_prediction(
+    model: string,
+    input: PredictionInput
+  ): Promise<PredictionResult> {
+    this.checkCircuit();
+
+    const startTime = Date.now();
+
+    try {
+      logger.debug({ model, inputType: typeof input }, 'Running prediction');
+
+      // TODO: Implement actual prediction call to RuvVector/ML backend
+      // Stub implementation
+      const result: PredictionResult = {
+        model,
+        output: {},
+        confidence: 0.0,
+        executionTime: Date.now() - startTime,
+      };
+
+      this.recordSuccess();
+
+      logger.info({ model, duration: result.executionTime }, 'Prediction completed');
+
+      return result;
+    } catch (error) {
+      this.recordFailure();
+      logger.error({ error, model }, 'Failed to run prediction');
+      throw error;
+    }
+  }
+
+  /**
    * Health check - verify connection to RuvVector (ping)
    * SPARC: vectorClient.ping()
    */
@@ -238,10 +364,10 @@ export class VectorClient {
     }
 
     try {
-      logger.debug({ host: this.host, port: this.port }, 'RuvVector health check');
+      logger.debug({ serviceUrl: this.serviceUrl }, 'RuvVector health check');
 
-      // Stub implementation - would make actual ping to RuvVector
-      // In production, this would verify TCP/gRPC connectivity
+      // TODO: Implement actual ping to RuvVector
+      // Stub implementation - would verify TCP/gRPC connectivity
       this.recordSuccess();
       return true;
     } catch (error) {
@@ -254,9 +380,23 @@ export class VectorClient {
   /**
    * Get connection info for logging
    */
-  getConnectionInfo(): { host: string; port: number } {
-    return { host: this.host, port: this.port };
+  getConnectionInfo(): { serviceUrl: string } {
+    return { serviceUrl: this.serviceUrl };
   }
 }
+
+/**
+ * Upsert operation result type
+ */
+export interface UpsertResult {
+  id: string;
+  namespace: string;
+  status: 'upserted' | 'created' | 'updated';
+}
+
+/**
+ * Prediction input type - can be vector or structured data
+ */
+export type PredictionInput = number[] | Record<string, unknown>;
 
 export default VectorClient;

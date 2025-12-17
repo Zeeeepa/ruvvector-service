@@ -207,3 +207,19 @@ export interface VectorSimilarityResult {
   processed: number;                // Number of vectors processed
   executionTime: number;            // Milliseconds
 }
+
+// ============================================================================
+// Prediction Operation Interfaces (Layer 3 Contract)
+// ============================================================================
+
+export interface PredictionParams {
+  model: string;                    // Model identifier
+  input: number[] | object;         // Vector or structured input
+}
+
+export interface PredictionResult {
+  model: string;                    // Model used
+  output: object;                   // Model output (structure depends on model)
+  confidence: number;               // Confidence score [0, 1]
+  executionTime: number;            // Milliseconds
+}

@@ -1,11 +1,6 @@
-import { config as dotenvConfig } from 'dotenv';
-
-// Load environment variables from .env file
-dotenvConfig();
-
 /**
  * Configuration interface matching SPARC specification
- * All configuration via environment variables only
+ * All configuration via environment variables only - NO .env files, NO defaults for required vars
  */
 interface Config {
   // Service configuration
@@ -14,8 +9,8 @@ interface Config {
 
   // RuvVector connection (infra-provisioned)
   ruvVector: {
-    host: string;
-    port: number;
+    serviceUrl: string;   // REQUIRED: Full service URL (e.g., http://ruvvector:6379)
+    apiKey?: string;      // OPTIONAL: API key if authentication required
     timeout: number;      // Request timeout (ms)
     poolSize: number;     // Connection pool size
   };
@@ -39,12 +34,32 @@ interface Config {
   };
 }
 
-const getEnvVar = (key: string, defaultValue?: string): string => {
+/**
+ * Get required environment variable - fails fast if missing
+ * SPARC: No .env files, no hard-coded defaults for required vars
+ */
+const getRequiredEnvVar = (key: string): string => {
   const value = process.env[key];
-  if (value === undefined && defaultValue === undefined) {
-    throw new Error(`Missing required environment variable: ${key}`);
+  if (value === undefined || value === '') {
+    throw new Error(`FATAL: Missing required environment variable: ${key}. Service cannot start without this configuration.`);
   }
-  return value || defaultValue || '';
+  return value;
+};
+
+/**
+ * Get optional environment variable with default
+ */
+const getEnvVar = (key: string, defaultValue: string): string => {
+  const value = process.env[key];
+  return value !== undefined && value !== '' ? value : defaultValue;
+};
+
+/**
+ * Get optional environment variable (may be undefined)
+ */
+const getOptionalEnvVar = (key: string): string | undefined => {
+  const value = process.env[key];
+  return value !== undefined && value !== '' ? value : undefined;
 };
 
 const getEnvNumber = (key: string, defaultValue: number): number => {
@@ -76,10 +91,10 @@ export const config: Config = {
   port: getEnvNumber('PORT', 3000),
   logLevel: getEnvVar('LOG_LEVEL', 'info'),
 
-  // RuvVector connection
+  // RuvVector connection - RUVVECTOR_SERVICE_URL is REQUIRED (fail-fast)
   ruvVector: {
-    host: getEnvVar('RUVVECTOR_HOST', 'localhost'),
-    port: getEnvNumber('RUVVECTOR_PORT', 6379),
+    serviceUrl: getRequiredEnvVar('RUVVECTOR_SERVICE_URL'),
+    apiKey: getOptionalEnvVar('RUVVECTOR_API_KEY'),
     timeout: getEnvNumber('RUVVECTOR_TIMEOUT', 30000),
     poolSize: getEnvNumber('RUVVECTOR_POOL_SIZE', 10),
   },
