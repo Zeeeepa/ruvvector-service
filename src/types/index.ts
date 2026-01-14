@@ -260,3 +260,85 @@ export interface ListPlansResponse {
 export interface DeletePlanResponse {
   success: boolean;
 }
+
+// ============================================================================
+// Deployments Storage Interfaces (Cloud Run API)
+// ============================================================================
+
+export type DeploymentEnvironment = 'development' | 'staging' | 'production';
+export type DeploymentStatus = 'pending' | 'previewed' | 'running' | 'completed' | 'failed' | 'rolled_back';
+
+export interface DeploymentPreviewChange {
+  resource: string;
+  action: 'create' | 'update' | 'delete' | 'unchanged';
+  details: string;
+}
+
+export interface DeploymentPreview {
+  changes: DeploymentPreviewChange[];
+  estimated_duration_seconds: number;
+  risk_level: 'low' | 'medium' | 'high';
+  requires_approval: boolean;
+  generated_at: string;
+}
+
+export interface DeploymentExecution {
+  started_at: string;
+  completed_at?: string;
+  steps_completed: number;
+  steps_total: number;
+  advisory: boolean;
+  logs: string[];
+}
+
+export interface Deployment {
+  id: string;                           // UUID
+  target_id: string;                    // Simulation or plan ID
+  environment: DeploymentEnvironment;
+  status: DeploymentStatus;
+  preview: DeploymentPreview | null;
+  execution: DeploymentExecution | null;
+  created_at: string;                   // ISO timestamp
+  updated_at: string;                   // ISO timestamp
+  version: number;                      // For optimistic locking
+  metadata: Record<string, unknown> | null;
+}
+
+export interface CreateDeploymentRequest {
+  id: string;
+  target_id: string;
+  environment: DeploymentEnvironment;
+  status: DeploymentStatus;
+  preview?: DeploymentPreview | null;
+  execution?: DeploymentExecution | null;
+  created_at?: string;
+  updated_at?: string;
+  version?: number;
+  metadata?: Record<string, unknown> | null;
+}
+
+export interface CreateDeploymentResponse {
+  id: string;
+  created: boolean;
+}
+
+export interface UpdateDeploymentRequest {
+  status?: DeploymentStatus;
+  execution?: DeploymentExecution | null;
+  preview?: DeploymentPreview | null;
+  updated_at?: string;
+  version?: number;
+  metadata?: Record<string, unknown> | null;
+}
+
+export interface ListDeploymentsResponse {
+  data: Deployment[];
+  total: number;
+  limit: number;
+  offset: number;
+}
+
+export interface DeleteDeploymentResponse {
+  deleted: boolean;
+  id: string;
+}

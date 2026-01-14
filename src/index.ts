@@ -30,6 +30,13 @@ import {
   listPlansHandler,
   deletePlanHandler,
 } from './handlers/plans';
+import {
+  createDeploymentHandler,
+  getDeploymentHandler,
+  updateDeploymentHandler,
+  listDeploymentsHandler,
+  deleteDeploymentHandler,
+} from './handlers/deployments';
 
 /**
  * Request metrics middleware - SPARC compliant
@@ -107,6 +114,35 @@ function createApp(vectorClient: VectorClient, dbClient: DatabaseClient): Applic
   // DELETE /v1/plans/:id - Delete a plan
   app.delete('/v1/plans/:id', (req, res, next) => {
     deletePlanHandler(req, res, dbClient).catch(next);
+  });
+
+  // ============================================================================
+  // Deployments API - /v1/deployments endpoints for Cloud Run
+  // ============================================================================
+
+  // POST /v1/deployments - Store a deployment
+  app.post('/v1/deployments', (req, res, next) => {
+    createDeploymentHandler(req, res, dbClient).catch(next);
+  });
+
+  // GET /v1/deployments/:id - Retrieve a deployment by ID
+  app.get('/v1/deployments/:id', (req, res, next) => {
+    getDeploymentHandler(req, res, dbClient).catch(next);
+  });
+
+  // PUT /v1/deployments/:id - Update a deployment
+  app.put('/v1/deployments/:id', (req, res, next) => {
+    updateDeploymentHandler(req, res, dbClient).catch(next);
+  });
+
+  // GET /v1/deployments - List deployments (with optional environment, status, limit, offset query params)
+  app.get('/v1/deployments', (req, res, next) => {
+    listDeploymentsHandler(req, res, dbClient).catch(next);
+  });
+
+  // DELETE /v1/deployments/:id - Delete a deployment
+  app.delete('/v1/deployments/:id', (req, res, next) => {
+    deleteDeploymentHandler(req, res, dbClient).catch(next);
   });
 
   // ============================================================================

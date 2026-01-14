@@ -73,6 +73,39 @@ export class DatabaseClient {
         CREATE INDEX IF NOT EXISTS idx_plans_created_at ON plans(created_at DESC)
       `);
 
+      // Create deployments table if it doesn't exist
+      await this.pool.query(`
+        CREATE TABLE IF NOT EXISTS deployments (
+          id UUID PRIMARY KEY,
+          target_id VARCHAR(255) NOT NULL,
+          environment VARCHAR(20) NOT NULL CHECK (environment IN ('development', 'staging', 'production')),
+          status VARCHAR(20) NOT NULL CHECK (status IN ('pending', 'previewed', 'running', 'completed', 'failed', 'rolled_back')),
+          preview JSONB,
+          execution JSONB,
+          created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+          updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+          version INTEGER NOT NULL DEFAULT 1,
+          metadata JSONB
+        )
+      `);
+
+      // Create indexes for deployments
+      await this.pool.query(`
+        CREATE INDEX IF NOT EXISTS idx_deployments_environment ON deployments(environment)
+      `);
+
+      await this.pool.query(`
+        CREATE INDEX IF NOT EXISTS idx_deployments_status ON deployments(status)
+      `);
+
+      await this.pool.query(`
+        CREATE INDEX IF NOT EXISTS idx_deployments_created ON deployments(created_at DESC)
+      `);
+
+      await this.pool.query(`
+        CREATE INDEX IF NOT EXISTS idx_deployments_target ON deployments(target_id)
+      `);
+
       this.initialized = true;
       logger.info('Database initialized successfully');
     } catch (error) {
