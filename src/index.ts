@@ -37,6 +37,12 @@ import {
   listDeploymentsHandler,
   deleteDeploymentHandler,
 } from './handlers/deployments';
+import {
+  createDecisionHandler,
+  getDecisionHandler,
+  listDecisionsHandler,
+} from './handlers/decisions';
+import { createApprovalHandler } from './handlers/approvals';
 
 /**
  * Request metrics middleware - SPARC compliant
@@ -143,6 +149,34 @@ function createApp(vectorClient: VectorClient, dbClient: DatabaseClient): Applic
   // DELETE /v1/deployments/:id - Delete a deployment
   app.delete('/v1/deployments/:id', (req, res, next) => {
     deleteDeploymentHandler(req, res, dbClient).catch(next);
+  });
+
+  // ============================================================================
+  // Decisions API - /v1/decisions endpoints for Executive Synthesis
+  // ============================================================================
+
+  // POST /v1/decisions - Store a new decision record
+  app.post('/v1/decisions', (req, res, next) => {
+    createDecisionHandler(req, res, dbClient).catch(next);
+  });
+
+  // GET /v1/decisions/:id - Retrieve a decision by ID
+  app.get('/v1/decisions/:id', (req, res, next) => {
+    getDecisionHandler(req, res, dbClient).catch(next);
+  });
+
+  // GET /v1/decisions - List decisions (with optional objective, limit, offset query params)
+  app.get('/v1/decisions', (req, res, next) => {
+    listDecisionsHandler(req, res, dbClient).catch(next);
+  });
+
+  // ============================================================================
+  // Decision Approval API - Learning endpoint for executive synthesis
+  // ============================================================================
+
+  // POST /decision/approval - Process approval event and apply learning
+  app.post('/decision/approval', (req, res, next) => {
+    createApprovalHandler(req, res, dbClient).catch(next);
   });
 
   // ============================================================================

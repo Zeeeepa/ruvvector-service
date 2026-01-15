@@ -342,3 +342,105 @@ export interface DeleteDeploymentResponse {
   deleted: boolean;
   id: string;
 }
+
+// ============================================================================
+// Decisions Storage Interfaces (Executive Synthesis)
+// ============================================================================
+
+export type DecisionConfidence = 'HIGH' | 'MEDIUM' | 'LOW';
+
+export interface DecisionSignals {
+  financial: string;           // Financial assessment summary
+  risk: string;                // Risk assessment summary
+  complexity: string;          // Complexity assessment summary
+}
+
+export interface DecisionGraphRelations {
+  objective_to_repos: string[];                // e.g., ["agentics-simulation-engine"]
+  repos_to_signals: Record<string, string[]>;  // e.g., {"repo": ["financial", "risk"]}
+  signals_to_recommendation: string[];         // e.g., ["PROCEED"]
+}
+
+export interface DecisionRecord {
+  id: string;                           // UUID
+  objective: string;                    // User intent string
+  command: string;                      // e.g., "agentics simulate"
+  raw_output_hash: string;              // SHA-256 hash of simulation JSON
+  recommendation: string;               // "PROCEED: ...", "DEFER: ...", etc.
+  confidence: DecisionConfidence;       // "HIGH", "MEDIUM", "LOW"
+  signals: DecisionSignals;
+  embedding_text: string;               // Text for vector embedding
+  embedding?: number[] | null;          // Vector embedding (optional)
+  graph_relations: DecisionGraphRelations;
+  created_at: string;                   // ISO timestamp
+}
+
+export interface CreateDecisionRequest {
+  id: string;
+  objective: string;
+  command: string;
+  raw_output_hash: string;
+  recommendation: string;
+  confidence: DecisionConfidence;
+  signals: DecisionSignals;
+  embedding_text: string;
+  graph_relations: DecisionGraphRelations;
+  created_at?: string;
+}
+
+export interface CreateDecisionResponse {
+  id: string;
+  created: boolean;
+  decision: DecisionRecord;
+}
+
+export interface ListDecisionsResponse {
+  data: DecisionRecord[];
+  total: number;
+  limit: number;
+  offset: number;
+}
+
+// ============================================================================
+// Decision Approval & Learning Interfaces
+// ============================================================================
+
+export interface ApprovalEvent {
+  decision_id: string;                  // UUID of the decision
+  approved: boolean;                    // true = positive reward, false = negative
+  confidence_adjustment?: number;       // Optional adjustment to confidence weight
+  timestamp: string;                    // ISO timestamp
+}
+
+export interface ApprovalRecord extends ApprovalEvent {
+  id: string;                           // Approval record UUID
+  reward: number;                       // Computed reward: +1.0 or -1.0
+  created_at: string;                   // ISO timestamp
+}
+
+export interface LearningWeight {
+  id: string;                           // Weight record UUID
+  source_type: 'decision' | 'signal' | 'objective';
+  source_id: string;                    // Source entity identifier
+  target_type: 'recommendation';
+  target_value: string;                 // e.g., "PROCEED", "DEFER"
+  weight: number;                       // Accumulated weight from approvals
+  update_count: number;                 // Number of updates
+  created_at: string;
+  updated_at: string;
+}
+
+export interface CreateApprovalRequest {
+  decision_id: string;
+  approved: boolean;
+  confidence_adjustment?: number;
+  timestamp?: string;
+}
+
+export interface CreateApprovalResponse {
+  id: string;
+  decision_id: string;
+  reward: number;
+  weights_updated: number;
+  learning_applied: boolean;
+}

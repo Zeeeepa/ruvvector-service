@@ -106,6 +106,85 @@ export class DatabaseClient {
         CREATE INDEX IF NOT EXISTS idx_deployments_target ON deployments(target_id)
       `);
 
+      // Create decisions table if it doesn't exist
+      await this.pool.query(`
+        CREATE TABLE IF NOT EXISTS decisions (
+          id UUID PRIMARY KEY,
+          objective TEXT NOT NULL,
+          command VARCHAR(255) NOT NULL,
+          raw_output_hash VARCHAR(64) NOT NULL,
+          recommendation TEXT NOT NULL,
+          confidence VARCHAR(10) NOT NULL CHECK (confidence IN ('HIGH', 'MEDIUM', 'LOW')),
+          signals JSONB NOT NULL,
+          embedding_text TEXT NOT NULL,
+          embedding JSONB,
+          graph_relations JSONB NOT NULL,
+          created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+        )
+      `);
+
+      // Create indexes for decisions
+      await this.pool.query(`
+        CREATE INDEX IF NOT EXISTS idx_decisions_created_at ON decisions(created_at DESC)
+      `);
+
+      await this.pool.query(`
+        CREATE INDEX IF NOT EXISTS idx_decisions_objective ON decisions USING gin(to_tsvector('english', objective))
+      `);
+
+      await this.pool.query(`
+        CREATE INDEX IF NOT EXISTS idx_decisions_confidence ON decisions(confidence)
+      `);
+
+      // Create approvals table for storing approval/rejection events
+      await this.pool.query(`
+        CREATE TABLE IF NOT EXISTS approvals (
+          id UUID PRIMARY KEY,
+          decision_id UUID NOT NULL REFERENCES decisions(id) ON DELETE CASCADE,
+          approved BOOLEAN NOT NULL,
+          confidence_adjustment DOUBLE PRECISION,
+          reward DOUBLE PRECISION NOT NULL,
+          timestamp TIMESTAMPTZ NOT NULL,
+          created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+        )
+      `);
+
+      await this.pool.query(`
+        CREATE INDEX IF NOT EXISTS idx_approvals_decision_id ON approvals(decision_id)
+      `);
+
+      await this.pool.query(`
+        CREATE INDEX IF NOT EXISTS idx_approvals_created_at ON approvals(created_at DESC)
+      `);
+
+      // Create learning_weights table for storing edge weights
+      await this.pool.query(`
+        CREATE TABLE IF NOT EXISTS learning_weights (
+          id UUID PRIMARY KEY,
+          source_type VARCHAR(20) NOT NULL CHECK (source_type IN ('decision', 'signal', 'objective')),
+          source_id TEXT NOT NULL,
+          target_type VARCHAR(20) NOT NULL DEFAULT 'recommendation',
+          target_value TEXT NOT NULL,
+          weight DOUBLE PRECISION NOT NULL DEFAULT 0.0,
+          update_count INTEGER NOT NULL DEFAULT 0,
+          created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+          updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+          UNIQUE(source_type, source_id, target_type, target_value)
+        )
+      `);
+
+      await this.pool.query(`
+        CREATE INDEX IF NOT EXISTS idx_learning_weights_source ON learning_weights(source_type, source_id)
+      `);
+
+      await this.pool.query(`
+        CREATE INDEX IF NOT EXISTS idx_learning_weights_target ON learning_weights(target_value)
+      `);
+
+      await this.pool.query(`
+        CREATE INDEX IF NOT EXISTS idx_learning_weights_weight ON learning_weights(weight DESC)
+      `);
+
       this.initialized = true;
       logger.info('Database initialized successfully');
     } catch (error) {
